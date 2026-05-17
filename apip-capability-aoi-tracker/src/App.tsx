@@ -52,7 +52,18 @@ export default function App() {
 
     const savedUser = localStorage.getItem('apip_current_user');
     if (savedUser) {
-      setCurrentUser(JSON.parse(savedUser));
+      const user = JSON.parse(savedUser);
+      setCurrentUser(user);
+      
+      // Set initial element based on role if restricted
+      if (user.role.startsWith('user-e')) {
+        const elementNum = user.role.replace('user-e', '');
+        const targetElement = aoiData.find(e => e.id === `elemen-${elementNum}`);
+        if (targetElement) {
+          setActiveElementId(targetElement.id);
+          setActiveTopicId(targetElement.topics[0]?.id || '');
+        }
+      }
     }
     setIsAuthReady(true);
   }, []);
@@ -65,6 +76,16 @@ export default function App() {
   const handleLogin = (user: User) => {
     setCurrentUser(user);
     localStorage.setItem('apip_current_user', JSON.stringify(user));
+    
+    // Set initial element based on role if restricted
+    if (user.role.startsWith('user-e')) {
+      const elementNum = user.role.replace('user-e', '');
+      const targetElement = data.find(e => e.id === `elemen-${elementNum}`);
+      if (targetElement) {
+        setActiveElementId(targetElement.id);
+        setActiveTopicId(targetElement.topics[0]?.id || '');
+      }
+    }
   };
 
   const handleLogout = () => {
@@ -170,16 +191,43 @@ export default function App() {
             
             <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto no-scrollbar">
               <div className="mb-4 px-3">
-                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-3 px-1">Main Menu</p>
+                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-3 px-1">Navigation</p>
                 <button
                   onClick={() => setActiveView('dashboard')}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all mb-1 ${
                     activeView === 'dashboard' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'text-slate-400 hover:text-white hover:bg-slate-800'
                   }`}
                 >
                   <LayoutDashboard size={18} />
                   <span className="text-sm font-bold uppercase tracking-tight">Dashboard</span>
                 </button>
+
+                {currentUser.role.startsWith('user-e') && (
+                  <div className="mt-4 pt-4 border-t border-slate-800">
+                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-3 px-1">Elemen {currentUser.role.replace('user-e', '')} Topics</p>
+                    {data.find(e => e.id === `elemen-${currentUser.role.replace('user-e', '')}`)?.topics.map((topic) => {
+                      const isActive = activeView === 'element' && activeTopicId === topic.id;
+                      return (
+                        <button
+                          key={topic.id}
+                          onClick={() => {
+                            setActiveView('element');
+                            setActiveTopicId(topic.id);
+                          }}
+                          className={`w-full text-left px-4 py-3 rounded-xl transition-all duration-200 flex flex-col group mb-1 ${
+                            isActive 
+                              ? 'bg-slate-800 border-l-4 border-blue-500 text-white' 
+                              : 'hover:bg-slate-800 border-l-4 border-transparent text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          <div className="text-[10px] uppercase opacity-50 mb-0.5 leading-none group-hover:opacity-100">{topic.id}</div>
+                          <div className="text-sm font-bold leading-tight">{topic.name.split(' - ')[1]}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
                 {currentUser.role === 'admin' && (
                   <button
                     onClick={() => setActiveView('users')}
@@ -188,46 +236,53 @@ export default function App() {
                     }`}
                   >
                     <Users size={18} />
-                    <span className="text-sm font-bold uppercase tracking-tight">Karyawan</span>
+                    <span className="text-sm font-bold uppercase tracking-tight">Kelola Akun</span>
                   </button>
                 )}
               </div>
 
-              <div className="pt-4 border-t border-slate-800">
-                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-3 px-3">Elements</p>
-                {data.map((element) => {
-                  const progress = calculateElementProgress(element);
-                  const isActive = activeView === 'element' && activeElementId === element.id;
-                  return (
-                    <button
-                      key={element.id}
-                      onClick={() => {
-                        setActiveView('element');
-                        setActiveElementId(element.id);
-                        setActiveTopicId(element.topics[0]?.id || '');
-                      }}
-                      className={`w-full text-left p-3 rounded transition-all duration-200 flex flex-col group mb-1 ${
-                        isActive 
-                          ? 'bg-slate-800 border-l-4 border-blue-500' 
-                          : 'hover:bg-slate-800 border-l-4 border-transparent text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      <div className="text-[10px] uppercase opacity-50 mb-1 leading-none">{element.name.split(' - ')[0]}</div>
-                      <div className="text-sm font-medium leading-tight">{element.name.split(' - ')[1]}</div>
-                      <div className="flex items-center gap-2 mt-2 w-full text-[10px] font-mono opacity-60">
-                        <div className="flex-1 h-1 bg-slate-700 rounded-full overflow-hidden">
-                          <motion.div 
-                            initial={{ width: 0 }}
-                            animate={{ width: `${progress}%` }}
-                            className={`h-full ${isActive ? 'bg-blue-500' : 'bg-slate-500'}`} 
-                          />
+              {!currentUser.role.startsWith('user-e') && (
+                <div className="pt-4 border-t border-slate-800 px-3">
+                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-3 px-1">Elements</p>
+                  {data.filter(element => {
+                    if (currentUser.role === 'admin' || currentUser.role === 'user') return true;
+                    const elementIndex = element.id.split('-')[1]; // e.g., "1" from "element-1"
+                    return currentUser.role === `user-e${elementIndex}`;
+                  }).map((element) => {
+                    const progress = calculateElementProgress(element);
+                    const isActive = activeView === 'element' && activeElementId === element.id;
+                    return (
+                      <button
+                        key={element.id}
+                        onClick={() => {
+                          setActiveView('element');
+                          setActiveElementId(element.id);
+                          setActiveTopicId(element.topics[0]?.id || '');
+                        }}
+                        className={`w-full text-left p-3 rounded transition-all duration-200 flex flex-col group mb-1 ${
+                          isActive 
+                            ? 'bg-slate-800 border-l-4 border-blue-500' 
+                            : 'hover:bg-slate-800 border-l-4 border-transparent text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        <div className="text-[10px] uppercase opacity-50 mb-1 leading-none">{element.name.split(' - ')[0]}</div>
+                        <div className="text-sm font-medium leading-tight">{element.name.split(' - ')[1]}</div>
+                        <div className="flex items-center gap-2 mt-2 w-full text-[10px] font-mono opacity-60">
+                          <div className="flex-1 h-1 bg-slate-700 rounded-full overflow-hidden">
+                            <motion.div 
+                              initial={{ width: 0 }}
+                              animate={{ width: `${progress}%` }}
+                              className={`h-full ${isActive ? 'bg-blue-500' : 'bg-slate-500'}`} 
+                            />
+                          </div>
+                          <span>{progress}%</span>
                         </div>
-                        <span>{progress}%</span>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
             </nav>
 
             <div className="p-4 bg-slate-950 border-t border-slate-800 flex flex-col gap-4">
@@ -277,7 +332,7 @@ export default function App() {
               ) : (
                 <>
                   <div className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Administration</div>
-                  <h2 className="text-lg font-bold text-slate-800 tracking-tight">Manajemen Akun Karyawan</h2>
+                  <h2 className="text-lg font-bold text-slate-800 tracking-tight">Kelola Akun Pengguna</h2>
                 </>
               )}
             </div>
@@ -309,10 +364,19 @@ export default function App() {
           <div className="flex-1 p-8 overflow-y-auto bg-slate-50">
             <div className="max-w-7xl mx-auto">
               <DashboardView 
-                data={data} 
+                data={data.filter(element => {
+                  if (currentUser.role === 'admin' || currentUser.role === 'user') return true;
+                  const elementIndex = element.id.split('-')[1];
+                  return currentUser.role === `user-e${elementIndex}`;
+                })} 
                 onSelectElement={(id) => {
                   setActiveElementId(id);
                   setActiveView('element');
+                  // For restricted users, dashboard selection should also set the first topic
+                  const targetElement = data.find(e => e.id === id);
+                  if (targetElement) {
+                    setActiveTopicId(targetElement.topics[0]?.id || '');
+                  }
                 }}
                 onDownload={downloadProgress}
               />
@@ -320,22 +384,25 @@ export default function App() {
           </div>
         ) : activeView === 'element' ? (
           <>
-            {/* Tab Navigation */}
-            <div className="h-10 bg-white border-b border-slate-200 flex px-8 shrink-0 overflow-x-auto no-scrollbar">
-              {activeElement.topics.map((topic) => (
-                <button
-                  key={topic.id}
-                  onClick={() => setActiveTopicId(topic.id)}
-                  className={`text-[11px] font-bold px-4 h-full transition-all border-b-2 shrink-0 ${
-                    activeTopicId === topic.id
-                      ? 'border-blue-600 text-blue-600'
-                      : 'border-transparent text-slate-500 hover:text-slate-700'
-                  }`}
-                >
-                  {topic.name}
-                </button>
-              ))}
-            </div>
+            {/* Tab Navigation - Hidden for element-restricted roles */}
+            {!currentUser.role.startsWith('user-e') && (
+              <div className="h-10 bg-white border-b border-slate-200 flex px-8 shrink-0 overflow-x-auto no-scrollbar">
+                {activeElement.topics.map((topic) => (
+                  <button
+                    key={topic.id}
+                    onClick={() => setActiveTopicId(topic.id)}
+                    className={`text-[11px] font-bold px-4 h-full transition-all border-b-2 shrink-0 ${
+                      activeTopicId === topic.id
+                        ? 'border-blue-600 text-blue-600'
+                        : 'border-transparent text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    {topic.name}
+                  </button>
+                ))}
+              </div>
+            )}
+
 
             {/* Action Items Container */}
             <div className="flex-1 p-6 space-y-6 overflow-y-auto bg-slate-50">
