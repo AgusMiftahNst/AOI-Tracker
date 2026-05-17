@@ -1,0 +1,8 @@
+{
+  "name": "APIP Capability AOI Tracker",
+  "description": "A follow-up tracking application for Inspectorate Area of Improvement (AOI) based on APIP Capability elements.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
